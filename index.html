@@ -68,9 +68,10 @@
   </div>
 
   <script>
-    const broker = "broker.hivemq.com";
-    const port = 8884; // Porta segura (WSS)
-    const clientId = "webClient-" + Math.floor(Math.random() * 10000);
+    const broker = "test.mosquitto.org";
+    const port = 8081;
+    const client = new Paho.MQTT.Client(broker, port, "/mqtt", clientId);
+
     const topicoUmidade = "umidificador/umidade";
     const topicoStatus = "umidificador/status";
     const topicoComando = "umidificador/comando";
