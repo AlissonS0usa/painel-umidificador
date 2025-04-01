@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Painel do Umidificador</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #eef2f3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    .info {
+      margin: 10px 0;
+      font-size: 20px;
+    }
+
+    .btn-group {
+      margin-top: 20px;
+    }
+
+    button {
+      margin: 0 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background-color: #007bff;
+      color: white;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    #status {
+      font-weight: bold;
+      color: green;
+    }
+
+    #status.desligado {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>Controle do Umidificador</h1>
+
+  <div class="info">Umidade Atual: <span id="umidade">--</span>%</div>
+  <div class="info">Status: <span id="status">--</span></div>
+
+  <div class="btn-group">
+    <button onclick="enviarComando('potencia1')">Potência 1</button>
+    <button onclick="enviarComando('potencia2')">Potência 2</button>
+    <button onclick="enviarComando('potencia3')">Potência 3</button>
+  </div>
+
+  <script>
+    const broker = "broker.hivemq.com";
+    const port = 8884; // Porta segura (WSS)
+    const clientId = "webClient-" + Math.floor(Math.random() * 10000);
+    const topicoUmidade = "umidificador/umidade";
+    const topicoStatus = "umidificador/status";
+    const topicoComando = "umidificador/comando";
+
+    let mqttConectado = false;
+
+    const client = new Paho.MQTT.Client(broker, port, clientId);
+
+    client.onConnectionLost = (responseObject) => {
+      console.log("Conexão perdida: " + responseObject.errorMessage);
+      mqttConectado = false;
+    };
+
+    client.onMessageArrived = (message) => {
+      console.log("Mensagem recebida:", message.destinationName, message.payloadString);
+      if (message.destinationName === topicoUmidade) {
+        document.getElementById("umidade").textContent = message.payloadString;
+      } else if (message.destinationName === topicoStatus) {
+        const statusElem = document.getElementById("status");
+        const status = message.payloadString;
+        statusElem.textContent = status;
+        statusElem.className = status.toLowerCase();
+      }
+    };
+
+    client.connect({
+      useSSL: true,
+      onSuccess: () => {
+        console.log("Conectado ao broker MQTT");
+        mqttConectado = true;
+        client.subscribe(topicoUmidade);
+        client.subscribe(topicoStatus);
+      },
+      onFailure: (err) => {
+        console.error("Falha na conexão: ", err);
+      }
+    });
+
+    function enviarComando(comando) {
+      if (!mqttConectado) {
+        alert("Ainda não conectado ao broker MQTT. Aguarde...");
+        return;
+      }
+      const message = new Paho.MQTT.Message(comando);
+      message.destinationName = topicoComando;
+      client.send(message);
+      console.log("Enviado:", comando);
+    }
+  </script>
+</body>
+</html>
