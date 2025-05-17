@@ -2,90 +2,175 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel do Umidificador</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Controle do Umidificador</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f5f5f5;
+      background: linear-gradient(to right, #dbeafe, #f0f4f8);
       display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: #ffffffcc;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      font-size: 1em;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #3b82f6;
+      color: white;
+      font-size: 1em;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    #painel {
+      display: none;
       flex-direction: column;
       align-items: center;
-      padding: 40px;
+      width: 100%;
     }
-    h1 {
-      color: #333;
+    .status-box {
+      background: #ffffffcc;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      text-align: center;
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 350px;
     }
-    .status, .umidade {
-      font-size: 1.2rem;
-      margin: 10px;
+    .status-box div {
+      margin: 10px 0;
+      font-size: 1.1em;
     }
-    .botoes button {
-      margin: 10px;
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 350px;
+    }
+    .buttons button {
+      flex: 1 1 100px;
+      min-width: 100px;
+    }
+    #feedback {
+      background: #facc15;
+      color: #1e293b;
       padding: 10px 20px;
-      font-size: 1rem;
-      cursor: pointer;
-      border: none;
-      background: #3498db;
-      color: white;
-      border-radius: 5px;
-    }
-    .botoes button:hover {
-      background: #2980b9;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      text-align: center;
+      margin-top: 10px;
+      width: 100%;
+      max-width: 350px;
+      box-sizing: border-box;
     }
   </style>
 </head>
 <body>
-  <h1>Controle do Umidificador</h1>
-  <div class="umidade">Umidade: <span id="umidade">---</span>%</div>
-  <div class="status">Status: <span id="status">---</span></div>
 
-  <div class="botoes">
-    <button onclick="enviarComando('potencia1')">Potência 1</button>
-    <button onclick="enviarComando('potencia2')">Potência 2</button>
-    <button onclick="enviarComando('potencia3')">Potência 3</button>
+  <div class="container" id="login">
+    <h2>Login</h2>
+    <input type="text" id="usuario" placeholder="Usuário">
+    <input type="password" id="senha" placeholder="Senha">
+    <button onclick="fazerLogin()">Entrar</button>
+    <div id="mensagemErro" style="color: red; margin-top: 10px;"></div>
+  </div>
+
+  <div id="painel">
+    <h1>Controle do Umidificador</h1>
+
+    <div class="status-box">
+      <div>Status: <span id="status">Desconhecido</span></div>
+      <div>Umidade: <span id="umidade">--</span>%</div>
+      <div>Potência: <span id="potencia">--</span></div>
+    </div>
+
+    <div class="buttons">
+      <button onclick="enviarComando('potencia1')">Potência 1</button>
+      <button onclick="enviarComando('potencia2')">Potência 2</button>
+      <button onclick="enviarComando('potencia3')">Potência 3</button>
+    </div>
+
+    <div id="feedback">Aguardando comando...</div>
   </div>
 
   <script>
-    const broker = "broker.hivemq.com";
-    const port = 8000; // Porta para WebSocket
-    const topicoUmidade = "umidificador/umidade";
-    const topicoStatus = "umidificador/status";
-    const topicoComando = "umidificador/comando";
+    function fazerLogin() {
+      const usuario = document.getElementById('usuario').value;
+      const senha = document.getElementById('senha').value;
 
-    const clientID = "webClient-" + parseInt(Math.random() * 10000);
-    const client = new Paho.MQTT.Client(broker, port, clientID);
-
-    client.onConnectionLost = (responseObject) => {
-      console.log("Conexão perdida: " + responseObject.errorMessage);
-    };
-
-    client.onMessageArrived = (message) => {
-      const payload = message.payloadString;
-      if (message.destinationName === topicoUmidade) {
-        document.getElementById("umidade").textContent = payload;
-      } else if (message.destinationName === topicoStatus) {
-        document.getElementById("status").textContent = payload;
+      if (usuario === 'admin' && senha === '1234') {
+        document.getElementById('login').style.display = 'none';
+        document.getElementById('painel').style.display = 'flex';
+        conectarMQTT();
+      } else {
+        document.getElementById('mensagemErro').innerText = "Usuário ou senha inválidos.";
       }
-    };
+    }
 
-    client.connect({
-      onSuccess: () => {
-        console.log("Conectado ao broker!");
-        client.subscribe(topicoUmidade);
-        client.subscribe(topicoStatus);
-      },
-      onFailure: (err) => {
-        console.error("Erro ao conectar: ", err);
-      }
-    });
+    function conectarMQTT() {
+      const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
 
-    function enviarComando(comando) {
-      const message = new Paho.MQTT.Message(comando);
-      message.destinationName = topicoComando;
-      client.send(message);
+      client.on('connect', () => {
+        console.log('✅ Conectado ao MQTT (HiveMQ)');
+        client.subscribe('alissondev007/umidificador/status');
+        client.subscribe('alissondev007/umidificador/umidade');
+        client.subscribe('alissondev007/umidificador/potencia');
+      });
+
+      client.on('message', (topic, message) => {
+        const msg = message.toString();
+        console.log(`📩 [${topic}] ${msg}`);
+
+        if (topic === 'alissondev007/umidificador/status') {
+          document.getElementById('status').innerText = msg;
+        } else if (topic === 'alissondev007/umidificador/umidade') {
+          document.getElementById('umidade').innerText = msg;
+        } else if (topic === 'alissondev007/umidificador/potencia') {
+          document.getElementById('potencia').innerText = msg;
+          mostrarFeedback("Aguardando comando...");
+        }
+      });
+
+      window.enviarComando = function(comando) {
+        console.log(`📝 Enviando comando: ${comando}`);
+        client.publish('alissondev007/umidificador/comando', comando);
+        mostrarFeedback(`Atualizando para ${comando.replace('potencia', 'potência ')}`);
+      };
+
+      window.mostrarFeedback = function(texto) {
+        const feedback = document.getElementById('feedback');
+        feedback.textContent = texto;
+      };
     }
   </script>
+
 </body>
 </html>
