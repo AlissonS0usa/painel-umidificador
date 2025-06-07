@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Controle do Umidificador</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
@@ -19,29 +19,27 @@
       background: #ffffffcc;
       padding: 30px;
       border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       width: 100%;
       max-width: 400px;
       text-align: center;
     }
-    input {
+    input,
+    button {
       width: 100%;
       padding: 12px;
       margin: 10px 0;
       border-radius: 10px;
-      border: 1px solid #ccc;
       font-size: 1em;
     }
+    input {
+      border: 1px solid #ccc;
+    }
     button {
-      width: 100%;
-      padding: 12px;
       background: #3b82f6;
       color: white;
-      font-size: 1em;
       border: none;
-      border-radius: 10px;
       cursor: pointer;
-      margin-top: 10px;
     }
     button:hover {
       background: #2563eb;
@@ -56,7 +54,7 @@
       background: #ffffffcc;
       padding: 20px;
       border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
       text-align: center;
       margin-bottom: 20px;
       width: 100%;
@@ -84,23 +82,45 @@
       color: #1e293b;
       padding: 10px 20px;
       border-radius: 12px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
       text-align: center;
       margin-top: 10px;
       width: 100%;
       max-width: 350px;
       box-sizing: border-box;
     }
+    #bloqueio {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+    #bloqueio button {
+      width: auto;
+      padding: 12px 24px;
+      font-size: 1.2em;
+      background-color: #22c55e;
+      border: none;
+      color: white;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
-
   <div class="container" id="login">
     <h2>Login</h2>
-    <input type="text" id="usuario" placeholder="Usuário">
-    <input type="password" id="senha" placeholder="Senha">
+    <input type="text" id="usuario" placeholder="Usuário" />
+    <input type="password" id="senha" placeholder="Senha" />
     <button onclick="fazerLogin()">Entrar</button>
-    <div id="mensagemErro" style="color: red; margin-top: 10px;"></div>
+    <div id="mensagemErro" style="color: red; margin-top: 10px"></div>
   </div>
 
   <div id="painel">
@@ -112,63 +132,166 @@
       <div>Potência: <span id="potencia">--</span></div>
     </div>
 
+    <div class="status-box">
+      <h3>Limites Atuais</h3>
+      <div>Umidade Mínima Atual: <span id="minimaAtual">--</span>%</div>
+      <div>Umidade Máxima Atual: <span id="maximaAtual">--</span>%</div>
+    </div>
+
     <div class="buttons">
       <button onclick="enviarComando('potencia1')">Potência 1</button>
       <button onclick="enviarComando('potencia2')">Potência 2</button>
       <button onclick="enviarComando('potencia3')">Potência 3</button>
+      <button onclick="bloquearSistema()" style="background-color: #ef4444;">Desligar Sistema</button>
     </div>
+
+    <div class="status-box">
+      <h3>Configurar Limites de Umidade</h3>
+      <input type="number" id="minima" placeholder="Umidade mínima (ex: 65)" />
+      <input type="number" id="maxima" placeholder="Umidade máxima (ex: 75)" />
+      <button onclick="enviarConfiguracao()">Enviar Configuração</button>
+    </div>
+
+    
 
     <div id="feedback">Aguardando comando...</div>
   </div>
 
-  <script>
-    function fazerLogin() {
-      const usuario = document.getElementById('usuario').value;
-      const senha = document.getElementById('senha').value;
+  <!-- Tela de bloqueio -->
+  <div id="bloqueio">
+    <h2 style="color: white;">Sistema Desativado</h2>
+    <button onclick="ativarSistema()">Ativar Sistema</button>
+  </div>
 
-      if (usuario === 'admin' && senha === '1234') {
-        document.getElementById('login').style.display = 'none';
-        document.getElementById('painel').style.display = 'flex';
+  <script>
+    let client;
+    let comandosPermitidos = localStorage.getItem('sistemaAtivo') !== 'false';
+
+    function fazerLogin() {
+      const usuario = document.getElementById("usuario").value;
+      const senha = document.getElementById("senha").value;
+
+      if (usuario === "admin" && senha === "1234") {
+        document.getElementById("login").style.display = "none";
+        document.getElementById("painel").style.display = "flex";
         conectarMQTT();
+
+        // Exibir bloqueio se o sistema estiver desativado
+        if (!comandosPermitidos) {
+          document.getElementById("bloqueio").style.display = "flex";
+        }
+
       } else {
-        document.getElementById('mensagemErro').innerText = "Usuário ou senha inválidos.";
+        document.getElementById("mensagemErro").innerText = "Usuário ou senha inválidos.";
       }
     }
 
     function conectarMQTT() {
-      const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+      client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
-      client.on('connect', () => {
-        console.log('✅ Conectado ao MQTT (HiveMQ)');
-        client.subscribe('alissondev007/umidificador/status');
-        client.subscribe('alissondev007/umidificador/umidade');
-        client.subscribe('alissondev007/umidificador/potencia');
+      client.on("connect", () => {
+        console.log("✅ Conectado ao MQTT (HiveMQ)");
+        client.subscribe("alissondev007/umidificador/status");
+        client.subscribe("alissondev007/umidificador/umidade");
+        client.subscribe("alissondev007/umidificador/potencia");
+        client.subscribe("alissondev007/umidificador/config-atual");
       });
 
-      client.on('message', (topic, message) => {
+      client.on("message", (topic, message) => {
         const msg = message.toString();
         console.log(`📩 [${topic}] ${msg}`);
 
-        if (topic === 'alissondev007/umidificador/status') {
-          document.getElementById('status').innerText = msg;
-        } else if (topic === 'alissondev007/umidificador/umidade') {
-          document.getElementById('umidade').innerText = msg;
-        } else if (topic === 'alissondev007/umidificador/potencia') {
-          document.getElementById('potencia').innerText = msg;
+        if (topic === "alissondev007/umidificador/status") {
+          document.getElementById("status").innerText = msg;
+        } else if (topic === "alissondev007/umidificador/umidade") {
+          document.getElementById("umidade").innerText = msg;
+        } else if (topic === "alissondev007/umidificador/potencia") {
+          document.getElementById("potencia").innerText = msg;
           mostrarFeedback("Aguardando comando...");
+        } else if (topic === "alissondev007/umidificador/config-atual") {
+          try {
+            const data = JSON.parse(msg);
+            if (data.umidadeMinima !== undefined) {
+              document.getElementById("minimaAtual").innerText = data.umidadeMinima;
+            }
+            if (data.umidadeMaxima !== undefined) {
+              document.getElementById("maximaAtual").innerText = data.umidadeMaxima;
+            }
+          } catch (e) {
+            console.warn("Erro ao interpretar config-atual:", e);
+          }
         }
       });
+    }
 
-      window.enviarComando = function(comando) {
-        console.log(`📝 Enviando comando: ${comando}`);
-        client.publish('alissondev007/umidificador/comando', comando);
-        mostrarFeedback(`Atualizando para ${comando.replace('potencia', 'potência ')}`);
+    function enviarComando(comando) {
+      if (!comandosPermitidos) {
+        mostrarFeedback("⚠️ Sistema desativado");
+        return;
+      }
+      if (client && client.connected) {
+        client.publish("alissondev007/umidificador/comando", comando);
+        mostrarFeedback(`Atualizando para ${comando.replace("potencia", "potência ")}`);
+      } else {
+        mostrarFeedback("❌ MQTT desconectado");
+      }
+    }
+
+    function enviarConfiguracao() {
+      const minima = parseInt(document.getElementById("minima").value);
+      const maxima = parseInt(document.getElementById("maxima").value);
+
+      if (isNaN(minima) || isNaN(maxima)) {
+        mostrarFeedback("❗ Preencha ambos os valores.");
+        return;
+      }
+      if (minima < 10 || maxima > 98 || minima >= maxima) {
+        mostrarFeedback("❗ Valores inválidos (mín > máx ou fora de 10-98)");
+        return;
+      }
+
+      const config = {
+        umidadeMinima: minima,
+        umidadeMaxima: maxima,
       };
 
-      window.mostrarFeedback = function(texto) {
-        const feedback = document.getElementById('feedback');
-        feedback.textContent = texto;
-      };
+      if (client && client.connected) {
+        client.publish("alissondev007/umidificador/config", JSON.stringify(config));
+        mostrarFeedback(`Enviado: Mín ${minima} / Máx ${maxima}`);
+      } else {
+        mostrarFeedback("❌ MQTT desconectado");
+      }
+    }
+
+    function mostrarFeedback(texto) {
+      document.getElementById("feedback").textContent = texto;
+    }
+
+    function bloquearSistema() {
+      const statusAtual = document.getElementById("status").innerText;
+
+      if (statusAtual !== "Ligado") {
+        mostrarFeedback("⚠️ O umidificador já está desligado.");
+        return;
+      }
+
+      comandosPermitidos = false;
+      localStorage.setItem('sistemaAtivo', 'false');
+      document.getElementById("bloqueio").style.display = "flex";
+
+      if (client && client.connected) {
+        client.publish("alissondev007/umidificador/comando", "desligar");
+      }
+    }
+
+    function ativarSistema() {
+      comandosPermitidos = true;
+      localStorage.setItem('sistemaAtivo', 'true');
+      document.getElementById("bloqueio").style.display = "none";
+
+      if (client && client.connected) {
+        client.publish("alissondev007/umidificador/comando", "ativar");
+      }
     }
   </script>
 
