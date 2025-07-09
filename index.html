@@ -165,6 +165,7 @@
 
   <script>
     let client;
+    let aguardandoConfirmacaoConfig = false;
     let comandosPermitidos = localStorage.getItem('sistemaAtivo') !== 'false';
 
     function fazerLogin() {
@@ -186,6 +187,8 @@
       }
     }
 
+    
+
     function conectarMQTT() {
       client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
 
@@ -196,10 +199,16 @@
         client.subscribe("alissondev007/umidificador/potencia");
         client.subscribe("alissondev007/umidificador/config-atual");
 
+        // ✅ Habilita o botão após conexão
+        document.querySelector('button[onclick="enviarConfiguracao()"]').disabled = false;
+
         const ultimaConfig = localStorage.getItem("ultimaConfig");
         if (ultimaConfig) {
           console.log("📤 Reenviando última configuração salva ao ESP32...");
-          client.publish("alissondev007/umidificador/config", ultimaConfig);
+          aguardandoConfirmacaoConfig = true;
+          setTimeout(() => {
+            client.publish("alissondev007/umidificador/config", ultimaConfig);
+          }, 300); // aguarda 300ms para garantir que a flag esteja ativa
         }
       });
 
@@ -223,6 +232,12 @@
             if (data.umidadeMaxima !== undefined) {
               document.getElementById("maximaAtual").innerText = data.umidadeMaxima;
             }
+
+            if (aguardandoConfirmacaoConfig) {
+              mostrarFeedback("✔ Configuração salva com sucesso");
+              aguardandoConfirmacaoConfig = false;
+            }
+
           } catch (e) {
             console.warn("Erro ao interpretar config-atual:", e);
           }
@@ -244,9 +259,14 @@
     }
 
     function enviarConfiguracao() {
+      if (!client || !client.connected) {
+        mostrarFeedback("❌ MQTT desconectado");
+        return;
+      }
+
       const minima = parseInt(document.getElementById("minima").value);
       const maxima = parseInt(document.getElementById("maxima").value);
-    
+
       if (isNaN(minima) || isNaN(maxima)) {
         mostrarFeedback("❗ Preencha ambos os valores.");
         return;
@@ -255,20 +275,18 @@
         mostrarFeedback("❗ Valores inválidos (mín > máx ou fora de 10-98)");
         return;
       }
-    
+
       const config = {
         umidadeMinima: minima,
         umidadeMaxima: maxima,
       };
-    
-      localStorage.setItem('ultimaConfig', JSON.stringify(config)); // 💾 Salvar no navegador
-    
-      if (client && client.connected) {
-        client.publish("alissondev007/umidificador/config", JSON.stringify(config));
-        mostrarFeedback(`Enviado: Mín ${minima} / Máx ${maxima}`);
-      } else {
-        mostrarFeedback("❌ MQTT desconectado");
-      }
+
+      localStorage.setItem('ultimaConfig', JSON.stringify(config));
+
+      client.publish("alissondev007/umidificador/config", JSON.stringify(config), { retain: true });
+      aguardandoConfirmacaoConfig = true;
+
+      mostrarFeedback(`Enviado: Mín ${minima} / Máx ${maxima}`);
     }
 
 
