@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Controle do Umidificador</title>
+  <title>Controle de Umidificadores</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     body {
@@ -19,51 +19,39 @@
       background: #ffffffcc;
       padding: 30px;
       border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       width: 100%;
       max-width: 400px;
       text-align: center;
     }
-    input,
-    button {
+    input, button {
       width: 100%;
       padding: 12px;
       margin: 10px 0;
       border-radius: 10px;
       font-size: 1em;
     }
-    input {
-      border: 1px solid #ccc;
-    }
+    input { border: 1px solid #ccc; }
     button {
       background: #3b82f6;
       color: white;
       border: none;
       cursor: pointer;
+      transition: 0.2s;
     }
-    button:hover {
-      background: #2563eb;
-    }
-    #painel {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-    }
+    button:hover { opacity: 0.9; }
+
     .status-box {
       background: #ffffffcc;
       padding: 20px;
       border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       text-align: center;
       margin-bottom: 20px;
       width: 100%;
       max-width: 350px;
     }
-    .status-box div {
-      margin: 10px 0;
-      font-size: 1.1em;
-    }
+    .status-box div { margin: 10px 0; font-size: 1.1em; }
     .buttons {
       display: flex;
       gap: 10px;
@@ -77,250 +65,275 @@
       flex: 1 1 100px;
       min-width: 100px;
     }
-    #feedback {
+    #feedback1,#feedback2 {
       background: #facc15;
       color: #1e293b;
       padding: 10px 20px;
       border-radius: 12px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
       text-align: center;
       margin-top: 10px;
       width: 100%;
       max-width: 350px;
       box-sizing: border-box;
     }
-    #bloqueio {
-      display: none;
+
+    #preview { display:none; flex-direction:column; align-items:center; }
+    .device-card {
+      background: #ffffffcc;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 90%; max-width:360px;
+      padding: 20px; margin: 12px; text-align:center;
+    }
+    .device-card h3 { color:#2563eb; }
+    .voltar { background:#94a3b8;width:auto;margin-bottom:15px; }
+
+    .overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.9);
-      z-index: 999;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.9);
+      color: white;
+      display: none;
       justify-content: center;
       align-items: center;
       flex-direction: column;
+      z-index: 1000;
     }
-    #bloqueio button {
+    .overlay h2 { font-size: 1.8em; margin-bottom: 20px; }
+    .overlay button {
       width: auto;
       padding: 12px 24px;
-      font-size: 1.2em;
-      background-color: #22c55e;
+      background: #22c55e;
       border: none;
       color: white;
-      border-radius: 10px;
-      margin-top: 20px;
+      border-radius: 8px;
+      font-size: 1.1em;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
+
+  <!-- Login -->
   <div class="container" id="login">
     <h2>Login</h2>
-    <input type="text" id="usuario" placeholder="Usuário" />
-    <input type="password" id="senha" placeholder="Senha" />
+    <input type="text" id="usuario" placeholder="Usuário">
+    <input type="password" id="senha" placeholder="Senha">
     <button onclick="fazerLogin()">Entrar</button>
-    <div id="mensagemErro" style="color: red; margin-top: 10px"></div>
+    <div id="mensagemErro" style="color:red;margin-top:10px"></div>
   </div>
 
-  <div id="painel">
-    <h1>Controle do Umidificador</h1>
+  <!-- Prévia -->
+  <div id="preview">
+    <h1>Dispositivos Conectados</h1>
+    <div class="device-card" style="border-left:5px solid #3b82f6;">
+      <h3>Umidificador 1 (3 potências)</h3>
+      <p>Umidade: <span id="prev_umid1">--</span>%</p>
+      <p>Status: <span id="prev_stat1">--</span></p>
+      <button onclick="abrirDetalhes(1)">Ver detalhes</button>
+    </div>
+
+    <div class="device-card" style="border-left:5px solid #22c55e;">
+      <h3>Umidificador 2 (Potenciômetro)</h3>
+      <p>Umidade: <span id="prev_umid2">--</span>%</p>
+      <p>Status: <span id="prev_stat2">--</span></p>
+      <button onclick="abrirDetalhes(2)">Ver detalhes</button>
+    </div>
+  </div>
+
+  <!-- Painel Umidificador 1 -->
+  <div id="painel1" style="display:none;flex-direction:column;align-items:center;">
+    <h1>Umidificador 1</h1>
+    <button class="voltar" onclick="voltarPreview()">← Voltar</button>
 
     <div class="status-box">
-      <div>Status: <span id="status">Desligado</span></div>
-      <div>Umidade: <span id="umidade">--</span>%</div>
-      <div>Potência: <span id="potencia">--</span></div>
+      <div>Umidade: <span id="umidade1">--</span>%</div>
+      <div>Status Tomada: <span id="status1">--</span></div>
+      <div>Sistema Automático: <span id="auto1">Ativo</span></div>
+      <div>Potência: <span id="potencia1">--</span></div>
     </div>
 
     <div class="status-box">
       <h3>Limites Atuais</h3>
-      <div>Umidade Mínima Atual: <span id="minimaAtual">--</span>%</div>
-      <div>Umidade Máxima Atual: <span id="maximaAtual">--</span>%</div>
+      <div>Umidade Mínima: <span id="minimaAtual1">--</span>%</div>
+      <div>Umidade Máxima: <span id="maximaAtual1">--</span>%</div>
     </div>
 
     <div class="buttons">
-      <button onclick="enviarComando('potencia1')">Potência 1</button>
-      <button onclick="enviarComando('potencia2')">Potência 2</button>
-      <button onclick="enviarComando('potencia3')">Potência 3</button>
-      <button onclick="bloquearSistema()" style="background-color: #ef4444;">Desligar Sistema</button>
+      <button onclick="enviarComando1('potencia1')">Potência 1</button>
+      <button onclick="enviarComando1('potencia2')">Potência 2</button>
+      <button onclick="enviarComando1('potencia3')">Potência 3</button>
+      <button id="btnPower1" onclick="desativarSistema(1)" style="background-color:#ef4444;">Desativar Sistema</button>
     </div>
 
     <div class="status-box">
-      <h3>Configurar Limites de Umidade</h3>
-      <input type="number" id="minima" placeholder="Umidade mínima (ex: 65)" />
-      <input type="number" id="maxima" placeholder="Umidade máxima (ex: 75)" />
-      <button onclick="enviarConfiguracao()">Enviar Configuração</button>
+      <h3>Configurar Limites</h3>
+      <input type="number" id="minima1" placeholder="Umidade mínima">
+      <input type="number" id="maxima1" placeholder="Umidade máxima">
+      <button onclick="enviarConfiguracao1()">Enviar</button>
     </div>
 
-    
-
-    <div id="feedback">Aguardando comando...</div>
+    <div id="feedback1">Aguardando comando...</div>
   </div>
 
-  <!-- Tela de bloqueio -->
-  <div id="bloqueio">
-    <h2 style="color: white;">Sistema Desativado</h2>
-    <button onclick="ativarSistema()">Ativar Sistema</button>
+  <!-- Painel Umidificador 2 -->
+  <div id="painel2" style="display:none;flex-direction:column;align-items:center;">
+    <h1>Umidificador 2</h1>
+    <button class="voltar" onclick="voltarPreview()">← Voltar</button>
+
+    <div class="status-box">
+      <div>Umidade: <span id="umidade2">--</span>%</div>
+      <div>Status Tomada: <span id="status2">--</span></div>
+      <div>Sistema Automático: <span id="auto2">Ativo</span></div>
+    </div>
+
+    <div class="status-box">
+      <h3>Limites Atuais</h3>
+      <div>Umidade Mínima: <span id="minimaAtual2">--</span>%</div>
+      <div>Umidade Máxima: <span id="maximaAtual2">--</span>%</div>
+    </div>
+
+    <div class="buttons">
+      <button id="btnPower2" onclick="desativarSistema(2)" style="background-color:#ef4444;">Desativar Sistema</button>
+    </div>
+
+    <div class="status-box">
+      <h3>Configurar Limites</h3>
+      <input type="number" id="minima2" placeholder="Umidade mínima">
+      <input type="number" id="maxima2" placeholder="Umidade máxima">
+      <button onclick="enviarConfiguracao2()">Enviar</button>
+    </div>
+
+    <div id="feedback2">Aguardando comando...</div>
+  </div>
+
+  <!-- Overlays -->
+  <div id="overlay1" class="overlay">
+    <h2>Umidificador 1 desativado</h2>
+    <button onclick="ativarSistema(1)">Ativar Sistema</button>
+  </div>
+  <div id="overlay2" class="overlay">
+    <h2>Umidificador 2 desativado</h2>
+    <button onclick="ativarSistema(2)">Ativar Sistema</button>
   </div>
 
   <script>
     let client;
-    let aguardandoConfirmacaoConfig = false;
-    let comandosPermitidos = localStorage.getItem('sistemaAtivo') !== 'false';
 
-    function fazerLogin() {
-      const usuario = document.getElementById("usuario").value;
-      const senha = document.getElementById("senha").value;
-
-      if (usuario === "admin" && senha === "1234") {
-        document.getElementById("login").style.display = "none";
-        document.getElementById("painel").style.display = "flex";
+    function fazerLogin(){
+      const u=document.getElementById("usuario").value;
+      const s=document.getElementById("senha").value;
+      if(u==="admin"&&s==="1234"){
+        document.getElementById("login").style.display="none";
+        document.getElementById("preview").style.display="flex";
         conectarMQTT();
-
-        // Exibir bloqueio se o sistema estiver desativado
-        if (!comandosPermitidos) {
-          document.getElementById("bloqueio").style.display = "flex";
-        }
-
-      } else {
-        document.getElementById("mensagemErro").innerText = "Usuário ou senha inválidos.";
-      }
+      } else document.getElementById("mensagemErro").innerText="Usuário ou senha inválidos.";
     }
 
-    
-
-    function conectarMQTT() {
-      client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
-
-      client.on("connect", () => {
-        console.log("✅ Conectado ao MQTT (HiveMQ)");
-        client.subscribe("alissondev007/umidificador/status");
-        client.subscribe("alissondev007/umidificador/umidade");
-        client.subscribe("alissondev007/umidificador/potencia");
-        client.subscribe("alissondev007/umidificador/config-atual");
-
-        // ✅ Habilita o botão após conexão
-        document.querySelector('button[onclick="enviarConfiguracao()"]').disabled = false;
-
-        const ultimaConfig = localStorage.getItem("ultimaConfig");
-        if (ultimaConfig) {
-          console.log("📤 Reenviando última configuração salva ao ESP32...");
-          aguardandoConfirmacaoConfig = true;
-          setTimeout(() => {
-            client.publish("alissondev007/umidificador/config", ultimaConfig);
-          }, 300); // aguarda 300ms para garantir que a flag esteja ativa
-        }
+    function conectarMQTT(){
+      client=mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+      client.on("connect",()=>{
+        console.log("✅ Conectado ao MQTT");
+        client.subscribe("alissondev007/umidificador/#");
+        client.subscribe("alissondev007/umidificador/31a7dbcc/#");
       });
 
-      client.on("message", (topic, message) => {
-        const msg = message.toString();
-        console.log(`📩 [${topic}] ${msg}`);
+      client.on("message",(topic,message)=>{
+        const msg=message.toString();
 
-        if (topic === "alissondev007/umidificador/status") {
-          document.getElementById("status").innerText = msg;
-        } else if (topic === "alissondev007/umidificador/umidade") {
-          document.getElementById("umidade").innerText = msg;
-        } else if (topic === "alissondev007/umidificador/potencia") {
-          document.getElementById("potencia").innerText = msg;
-          mostrarFeedback("Aguardando comando...");
-        } else if (topic === "alissondev007/umidificador/config-atual") {
-          try {
-            const data = JSON.parse(msg);
-            if (data.umidadeMinima !== undefined) {
-              document.getElementById("minimaAtual").innerText = data.umidadeMinima;
-            }
-            if (data.umidadeMaxima !== undefined) {
-              document.getElementById("maximaAtual").innerText = data.umidadeMaxima;
-            }
+        // --- Umidificador 1 ---
+        if(topic==="alissondev007/umidificador/umidade") {
+          document.getElementById("umidade1").innerText=msg;
+          document.getElementById("prev_umid1").innerText=msg;
+        }
+        if(topic==="alissondev007/umidificador/status") {
+          document.getElementById("status1").innerText=msg;
+          document.getElementById("prev_stat1").innerText=msg;
+        }
+        if(topic==="alissondev007/umidificador/potencia")
+          document.getElementById("potencia1").innerText=msg;
+        if(topic==="alissondev007/umidificador/config-atual"){
+          try{
+            const d=JSON.parse(msg);
+            document.getElementById("minimaAtual1").innerText=d.umidadeMinima;
+            document.getElementById("maximaAtual1").innerText=d.umidadeMaxima;
+          }catch(e){}
+        }
 
-            if (aguardandoConfirmacaoConfig) {
-              mostrarFeedback("✔ Configuração salva com sucesso");
-              aguardandoConfirmacaoConfig = false;
-            }
-
-          } catch (e) {
-            console.warn("Erro ao interpretar config-atual:", e);
-          }
+        // --- Umidificador 2 ---
+        if(topic==="alissondev007/umidificador/31a7dbcc/umidade") {
+          document.getElementById("umidade2").innerText=msg;
+          document.getElementById("prev_umid2").innerText=msg;
+        }
+        if(topic==="alissondev007/umidificador/31a7dbcc/status") {
+          const txt=(msg==="1"?"Ligado":"Desligado");
+          document.getElementById("status2").innerText=txt;
+          document.getElementById("prev_stat2").innerText=txt;
+        }
+        if(topic==="alissondev007/umidificador/31a7dbcc/config-atual"){
+          try{
+            const d=JSON.parse(msg);
+            document.getElementById("minimaAtual2").innerText=d.umidadeMinima;
+            document.getElementById("maximaAtual2").innerText=d.umidadeMaxima;
+          }catch(e){}
         }
       });
     }
 
-    function enviarComando(comando) {
-      if (!comandosPermitidos) {
-        mostrarFeedback("⚠️ Sistema desativado");
-        return;
-      }
-      if (client && client.connected) {
-        client.publish("alissondev007/umidificador/comando", comando);
-        mostrarFeedback(`Atualizando para ${comando.replace("potencia", "potência ")}`);
-      } else {
-        mostrarFeedback("❌ MQTT desconectado");
-      }
+    function abrirDetalhes(id){
+      document.getElementById("preview").style.display="none";
+      document.getElementById(`painel${id}`).style.display="flex";
+    }
+    function voltarPreview(){
+      document.getElementById("painel1").style.display="none";
+      document.getElementById("painel2").style.display="none";
+      document.getElementById("preview").style.display="flex";
     }
 
-    function enviarConfiguracao() {
-      if (!client || !client.connected) {
-        mostrarFeedback("❌ MQTT desconectado");
-        return;
-      }
+    // === Validação ===
+    function validarLimites(min, max, id){
+      if(isNaN(min)||isNaN(max)){mostrarFeedback(id,"❗ Preencha ambos os valores.");return false;}
+      if(min<0||max>100){mostrarFeedback(id,"❗ Os valores devem estar entre 0 e 100.");return false;}
+      if(min>=max){mostrarFeedback(id,"❗ A umidade mínima deve ser menor que a máxima.");return false;}
+      return true;
+    }
+    function mostrarFeedback(id,txt){document.getElementById(`feedback${id}`).textContent=txt;}
 
-      const minima = parseInt(document.getElementById("minima").value);
-      const maxima = parseInt(document.getElementById("maxima").value);
-
-      if (isNaN(minima) || isNaN(maxima)) {
-        mostrarFeedback("❗ Preencha ambos os valores.");
-        return;
-      }
-      if (minima < 10 || maxima > 98 || minima >= maxima) {
-        mostrarFeedback("❗ Valores inválidos (mín > máx ou fora de 10-98)");
-        return;
-      }
-
-      const config = {
-        umidadeMinima: minima,
-        umidadeMaxima: maxima,
-      };
-
-      localStorage.setItem('ultimaConfig', JSON.stringify(config));
-
-      client.publish("alissondev007/umidificador/config", JSON.stringify(config), { retain: true });
-      aguardandoConfirmacaoConfig = true;
-
-      mostrarFeedback(`Enviado: Mín ${minima} / Máx ${maxima}`);
+    // === Umidificador 1 ===
+    function enviarComando1(cmd){client.publish("alissondev007/umidificador/comando",cmd);}
+    function enviarConfiguracao1(){
+      const min=parseInt(document.getElementById("minima1").value);
+      const max=parseInt(document.getElementById("maxima1").value);
+      if(!validarLimites(min,max,1))return;
+      const conf=JSON.stringify({umidadeMinima:min,umidadeMaxima:max});
+      client.publish("alissondev007/umidificador/config",conf,{retain:true});
+      mostrarFeedback(1,`Config enviada: Mín ${min}/Máx ${max}`);
     }
 
-
-    function mostrarFeedback(texto) {
-      document.getElementById("feedback").textContent = texto;
+    // === Umidificador 2 ===
+    function enviarConfiguracao2(){
+      const min=parseInt(document.getElementById("minima2").value);
+      const max=parseInt(document.getElementById("maxima2").value);
+      if(!validarLimites(min,max,2))return;
+      const conf=JSON.stringify({umidadeMinima:min,umidadeMaxima:max});
+      client.publish("alissondev007/umidificador/31a7dbcc/config",conf,{retain:true});
+      mostrarFeedback(2,`Config enviada: Mín ${min}/Máx ${max}`);
     }
 
-    function bloquearSistema() {
-      const statusAtual = document.getElementById("status").innerText;
-
-      if (statusAtual !== "Ligado") {
-        mostrarFeedback("⚠️ O umidificador já está desligado.");
-        return;
-      }
-
-      comandosPermitidos = false;
-      localStorage.setItem('sistemaAtivo', 'false');
-      document.getElementById("bloqueio").style.display = "flex";
-
-      if (client && client.connected) {
-        client.publish("alissondev007/umidificador/comando", "desligar");
-      }
+    // === Bloqueio ===
+    function desativarSistema(id){
+      document.getElementById(`overlay${id}`).style.display="flex";
+      document.getElementById(`auto${id}`).innerText="Inativo";
+      if(id===1)client.publish("alissondev007/umidificador/comando","desligar");
+      if(id===2)client.publish("alissondev007/umidificador/31a7dbcc/comando","DESLIGAR");
     }
-
-    function ativarSistema() {
-      comandosPermitidos = true;
-      localStorage.setItem('sistemaAtivo', 'true');
-      document.getElementById("bloqueio").style.display = "none";
-
-      if (client && client.connected) {
-        client.publish("alissondev007/umidificador/comando", "ativar");
-      }
+    function ativarSistema(id){
+      document.getElementById(`overlay${id}`).style.display="none";
+      document.getElementById(`auto${id}`).innerText="Ativo";
+      if(id===1)client.publish("alissondev007/umidificador/comando","ativar");
+      if(id===2)client.publish("alissondev007/umidificador/31a7dbcc/comando","LIGAR");
     }
   </script>
-
 </body>
 </html>
