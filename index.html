@@ -128,7 +128,7 @@
   <div id="preview">
     <h1>Dispositivos Conectados</h1>
     <div class="device-card" style="border-left:5px solid #3b82f6;">
-      <h3>Umidificador 1 (3 potências)</h3>
+      <h3>Primeiro Dispositivo</h3>
       <p>Umidade: <span id="prev_umid1">--</span>%</p>
       <p>Status: <span id="prev_stat1">--</span></p>
       <button onclick="abrirDetalhes(1)">Ver detalhes</button>
@@ -142,35 +142,34 @@
     </div>
   </div>
 
-  <!-- Painel Umidificador 1 -->
+  <!-- Painel Primeiro Dispositivo -->
   <div id="painel1" style="display:none;flex-direction:column;align-items:center;">
-    <h1>Umidificador 1</h1>
+    <h1>Primeiro Dispositivo</h1>
     <button class="voltar" onclick="voltarPreview()">← Voltar</button>
 
     <div class="status-box">
       <div>Umidade: <span id="umidade1">--</span>%</div>
       <div>Status Tomada: <span id="status1">--</span></div>
       <div>Sistema Automático: <span id="auto1">Ativo</span></div>
-      <div>Potência: <span id="potencia1">--</span></div>
     </div>
 
     <div class="status-box">
       <h3>Limites Atuais</h3>
       <div>Umidade Mínima: <span id="minimaAtual1">--</span>%</div>
       <div>Umidade Máxima: <span id="maximaAtual1">--</span>%</div>
+      <div>Tempo Máx. Ligado: <span id="tempoAtual1">--</span> min</div>
     </div>
 
     <div class="buttons">
-      <button onclick="enviarComando1('potencia1')">Potência 1</button>
-      <button onclick="enviarComando1('potencia2')">Potência 2</button>
-      <button onclick="enviarComando1('potencia3')">Potência 3</button>
       <button id="btnPower1" onclick="desativarSistema(1)" style="background-color:#ef4444;">Desativar Sistema</button>
     </div>
 
     <div class="status-box">
-      <h3>Configurar Limites</h3>
+      <h3>Configurar Parâmetros</h3>
+      <small>Preencha apenas o que quiser alterar.</small>
       <input type="number" id="minima1" placeholder="Umidade mínima">
       <input type="number" id="maxima1" placeholder="Umidade máxima">
+      <input type="number" id="tempoMax1" placeholder="Tempo máximo ligado (min)" min="1" max="120">
       <button onclick="enviarConfiguracao1()">Enviar</button>
     </div>
 
@@ -210,7 +209,7 @@
 
   <!-- Overlays -->
   <div id="overlay1" class="overlay">
-    <h2>Umidificador 1 desativado</h2>
+    <h2>Primeiro Dispositivo desativado</h2>
     <button onclick="ativarSistema(1)">Ativar Sistema</button>
   </div>
   <div id="overlay2" class="overlay">
@@ -220,6 +219,9 @@
 
   <script>
     let client;
+
+    const BASE_3P = "alissondev007/umidificador/umid-3p-01";
+    const BASE_POT = "alissondev007/umidificador/31a7dbcc";
 
     function fazerLogin(){
       const u=document.getElementById("usuario").value;
@@ -236,42 +238,53 @@
       client.on("connect",()=>{
         console.log("✅ Conectado ao MQTT");
         client.subscribe("alissondev007/umidificador/#");
-        client.subscribe("alissondev007/umidificador/31a7dbcc/#");
       });
 
       client.on("message",(topic,message)=>{
         const msg=message.toString();
 
-        // --- Umidificador 1 ---
-        if(topic==="alissondev007/umidificador/umidade") {
+        // --- Primeiro Dispositivo ---
+        if(topic===`${BASE_3P}/umidade`) {
           document.getElementById("umidade1").innerText=msg;
           document.getElementById("prev_umid1").innerText=msg;
         }
-        if(topic==="alissondev007/umidificador/status") {
-          document.getElementById("status1").innerText=msg;
-          document.getElementById("prev_stat1").innerText=msg;
+        if(topic===`${BASE_3P}/status`) {
+          const txt=(msg==="1"?"Ligado":(msg==="0"?"Desligado":msg));
+          document.getElementById("status1").innerText=txt;
+          document.getElementById("prev_stat1").innerText=txt;
         }
-        if(topic==="alissondev007/umidificador/potencia")
-          document.getElementById("potencia1").innerText=msg;
-        if(topic==="alissondev007/umidificador/config-atual"){
+        if(topic===`${BASE_3P}/config-atual`){
           try{
             const d=JSON.parse(msg);
-            document.getElementById("minimaAtual1").innerText=d.umidadeMinima;
-            document.getElementById("maximaAtual1").innerText=d.umidadeMaxima;
+
+            if(d.umidadeMinima!==undefined){
+              document.getElementById("minimaAtual1").innerText=d.umidadeMinima;
+              document.getElementById("minima1").placeholder=`Umidade mínima atual: ${d.umidadeMinima}`;
+            }
+
+            if(d.umidadeMaxima!==undefined){
+              document.getElementById("maximaAtual1").innerText=d.umidadeMaxima;
+              document.getElementById("maxima1").placeholder=`Umidade máxima atual: ${d.umidadeMaxima}`;
+            }
+
+            if(d.tempoMaxLigadoMin!==undefined){
+              document.getElementById("tempoAtual1").innerText=d.tempoMaxLigadoMin;
+              document.getElementById("tempoMax1").placeholder=`Tempo atual: ${d.tempoMaxLigadoMin} min`;
+            }
           }catch(e){}
         }
 
         // --- Umidificador 2 ---
-        if(topic==="alissondev007/umidificador/31a7dbcc/umidade") {
+        if(topic===`${BASE_POT}/umidade`) {
           document.getElementById("umidade2").innerText=msg;
           document.getElementById("prev_umid2").innerText=msg;
         }
-        if(topic==="alissondev007/umidificador/31a7dbcc/status") {
+        if(topic===`${BASE_POT}/status`) {
           const txt=(msg==="1"?"Ligado":"Desligado");
           document.getElementById("status2").innerText=txt;
           document.getElementById("prev_stat2").innerText=txt;
         }
-        if(topic==="alissondev007/umidificador/31a7dbcc/config-atual"){
+        if(topic===`${BASE_POT}/config-atual`){
           try{
             const d=JSON.parse(msg);
             document.getElementById("minimaAtual2").innerText=d.umidadeMinima;
@@ -293,22 +306,64 @@
 
     // === Validação ===
     function validarLimites(min, max, id){
-      if(isNaN(min)||isNaN(max)){mostrarFeedback(id,"❗ Preencha ambos os valores.");return false;}
+      if(isNaN(min)||isNaN(max)){mostrarFeedback(id,"❗ Preencha os limites de umidade.");return false;}
       if(min<0||max>100){mostrarFeedback(id,"❗ Os valores devem estar entre 0 e 100.");return false;}
       if(min>=max){mostrarFeedback(id,"❗ A umidade mínima deve ser menor que a máxima.");return false;}
       return true;
     }
+    function validarTempoMaxLigado(tempo, id){
+      if(isNaN(tempo)){mostrarFeedback(id,"❗ Tempo máximo ligado inválido.");return false;}
+      if(tempo<1||tempo>120){mostrarFeedback(id,"❗ O tempo máximo ligado deve ficar entre 1 e 120 minutos.");return false;}
+      return true;
+    }
     function mostrarFeedback(id,txt){document.getElementById(`feedback${id}`).textContent=txt;}
 
-    // === Umidificador 1 ===
-    function enviarComando1(cmd){client.publish("alissondev007/umidificador/comando",cmd);}
+    function limparCamposConfiguracao1(){
+      document.getElementById("minima1").value="";
+      document.getElementById("maxima1").value="";
+      document.getElementById("tempoMax1").value="";
+    }
+
+    // === Primeiro Dispositivo ===
     function enviarConfiguracao1(){
-      const min=parseInt(document.getElementById("minima1").value);
-      const max=parseInt(document.getElementById("maxima1").value);
-      if(!validarLimites(min,max,1))return;
-      const conf=JSON.stringify({umidadeMinima:min,umidadeMaxima:max});
-      client.publish("alissondev007/umidificador/config",conf,{retain:true});
-      mostrarFeedback(1,`Config enviada: Mín ${min}/Máx ${max}`);
+      const minValor=document.getElementById("minima1").value.trim();
+      const maxValor=document.getElementById("maxima1").value.trim();
+      const tempoValor=document.getElementById("tempoMax1").value.trim();
+      const config={};
+      const mensagens=[];
+
+      const querAlterarUmidade = minValor!=="" || maxValor!=="";
+      if(querAlterarUmidade){
+        if(minValor==="" || maxValor===""){
+          mostrarFeedback(1,"❗ Para alterar umidade, preencha mínima e máxima.");
+          return;
+        }
+
+        const min=parseInt(minValor,10);
+        const max=parseInt(maxValor,10);
+        if(!validarLimites(min,max,1))return;
+
+        config.umidadeMinima=min;
+        config.umidadeMaxima=max;
+        mensagens.push(`Mín ${min}/Máx ${max}`);
+      }
+
+      if(tempoValor!==""){
+        const tempo=parseInt(tempoValor,10);
+        if(!validarTempoMaxLigado(tempo,1))return;
+
+        config.tempoMaxLigadoMin=tempo;
+        mensagens.push(`Proteção ${tempo} min`);
+      }
+
+      if(Object.keys(config).length===0){
+        mostrarFeedback(1,"❗ Preencha pelo menos um campo para enviar.");
+        return;
+      }
+
+      client.publish(`${BASE_3P}/config`,JSON.stringify(config),{retain:true});
+      mostrarFeedback(1,`Config enviada: ${mensagens.join(" | ")}`);
+      limparCamposConfiguracao1();
     }
 
     // === Umidificador 2 ===
@@ -317,7 +372,7 @@
       const max=parseInt(document.getElementById("maxima2").value);
       if(!validarLimites(min,max,2))return;
       const conf=JSON.stringify({umidadeMinima:min,umidadeMaxima:max});
-      client.publish("alissondev007/umidificador/31a7dbcc/config",conf,{retain:true});
+      client.publish(`${BASE_POT}/config`,conf,{retain:true});
       mostrarFeedback(2,`Config enviada: Mín ${min}/Máx ${max}`);
     }
 
@@ -325,14 +380,14 @@
     function desativarSistema(id){
       document.getElementById(`overlay${id}`).style.display="flex";
       document.getElementById(`auto${id}`).innerText="Inativo";
-      if(id===1)client.publish("alissondev007/umidificador/comando","desligar");
-      if(id===2)client.publish("alissondev007/umidificador/31a7dbcc/comando","DESLIGAR");
+      if(id===1)client.publish(`${BASE_3P}/comando`,"DESLIGAR");
+      if(id===2)client.publish(`${BASE_POT}/comando`,"DESLIGAR");
     }
     function ativarSistema(id){
       document.getElementById(`overlay${id}`).style.display="none";
       document.getElementById(`auto${id}`).innerText="Ativo";
-      if(id===1)client.publish("alissondev007/umidificador/comando","ativar");
-      if(id===2)client.publish("alissondev007/umidificador/31a7dbcc/comando","LIGAR");
+      if(id===1)client.publish(`${BASE_3P}/comando`,"LIGAR");
+      if(id===2)client.publish(`${BASE_POT}/comando`,"LIGAR");
     }
   </script>
 </body>
