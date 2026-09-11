@@ -191,6 +191,7 @@
       <h3>Limites Atuais</h3>
       <div>Umidade Mínima: <span id="minimaAtual2">--</span>%</div>
       <div>Umidade Máxima: <span id="maximaAtual2">--</span>%</div>
+      <div>Tempo Máx. Ligado: <span id="tempoAtual2">--</span> min</div>
     </div>
 
     <div class="buttons">
@@ -198,9 +199,11 @@
     </div>
 
     <div class="status-box">
-      <h3>Configurar Limites</h3>
+      <h3>Configurar Parâmetros</h3>
+      <small>Preencha apenas o que quiser alterar.</small>
       <input type="number" id="minima2" placeholder="Umidade mínima">
       <input type="number" id="maxima2" placeholder="Umidade máxima">
+      <input type="number" id="tempoMax2" placeholder="Tempo máximo ligado (min)" min="1" max="120">
       <button onclick="enviarConfiguracao2()">Enviar</button>
     </div>
 
@@ -280,15 +283,28 @@
           document.getElementById("prev_umid2").innerText=msg;
         }
         if(topic===`${BASE_POT}/status`) {
-          const txt=(msg==="1"?"Ligado":"Desligado");
+          const txt=(msg==="1"?"Ligado":(msg==="0"?"Desligado":msg));
           document.getElementById("status2").innerText=txt;
           document.getElementById("prev_stat2").innerText=txt;
         }
         if(topic===`${BASE_POT}/config-atual`){
           try{
             const d=JSON.parse(msg);
-            document.getElementById("minimaAtual2").innerText=d.umidadeMinima;
-            document.getElementById("maximaAtual2").innerText=d.umidadeMaxima;
+
+            if(d.umidadeMinima!==undefined){
+              document.getElementById("minimaAtual2").innerText=d.umidadeMinima;
+              document.getElementById("minima2").placeholder=`Umidade mínima atual: ${d.umidadeMinima}`;
+            }
+
+            if(d.umidadeMaxima!==undefined){
+              document.getElementById("maximaAtual2").innerText=d.umidadeMaxima;
+              document.getElementById("maxima2").placeholder=`Umidade máxima atual: ${d.umidadeMaxima}`;
+            }
+
+            if(d.tempoMaxLigadoMin!==undefined){
+              document.getElementById("tempoAtual2").innerText=d.tempoMaxLigadoMin;
+              document.getElementById("tempoMax2").placeholder=`Tempo atual: ${d.tempoMaxLigadoMin} min`;
+            }
           }catch(e){}
         }
       });
@@ -322,6 +338,12 @@
       document.getElementById("minima1").value="";
       document.getElementById("maxima1").value="";
       document.getElementById("tempoMax1").value="";
+    }
+
+    function limparCamposConfiguracao2(){
+      document.getElementById("minima2").value="";
+      document.getElementById("maxima2").value="";
+      document.getElementById("tempoMax2").value="";
     }
 
     // === Primeiro Dispositivo ===
@@ -368,12 +390,44 @@
 
     // === Umidificador 2 ===
     function enviarConfiguracao2(){
-      const min=parseInt(document.getElementById("minima2").value);
-      const max=parseInt(document.getElementById("maxima2").value);
-      if(!validarLimites(min,max,2))return;
-      const conf=JSON.stringify({umidadeMinima:min,umidadeMaxima:max});
-      client.publish(`${BASE_POT}/config`,conf,{retain:true});
-      mostrarFeedback(2,`Config enviada: Mín ${min}/Máx ${max}`);
+      const minValor=document.getElementById("minima2").value.trim();
+      const maxValor=document.getElementById("maxima2").value.trim();
+      const tempoValor=document.getElementById("tempoMax2").value.trim();
+      const config={};
+      const mensagens=[];
+
+      const querAlterarUmidade = minValor!=="" || maxValor!=="";
+      if(querAlterarUmidade){
+        if(minValor==="" || maxValor===""){
+          mostrarFeedback(2,"❗ Para alterar umidade, preencha mínima e máxima.");
+          return;
+        }
+
+        const min=parseInt(minValor,10);
+        const max=parseInt(maxValor,10);
+        if(!validarLimites(min,max,2))return;
+
+        config.umidadeMinima=min;
+        config.umidadeMaxima=max;
+        mensagens.push(`Mín ${min}/Máx ${max}`);
+      }
+
+      if(tempoValor!==""){
+        const tempo=parseInt(tempoValor,10);
+        if(!validarTempoMaxLigado(tempo,2))return;
+
+        config.tempoMaxLigadoMin=tempo;
+        mensagens.push(`Proteção ${tempo} min`);
+      }
+
+      if(Object.keys(config).length===0){
+        mostrarFeedback(2,"❗ Preencha pelo menos um campo para enviar.");
+        return;
+      }
+
+      client.publish(`${BASE_POT}/config`,JSON.stringify(config),{retain:true});
+      mostrarFeedback(2,`Config enviada: ${mensagens.join(" | ")}`);
+      limparCamposConfiguracao2();
     }
 
     // === Bloqueio ===
